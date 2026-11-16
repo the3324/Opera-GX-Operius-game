@@ -5,26 +5,34 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta http-equiv="pragma" content="no-cache"/>
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta charset="utf-8"/>
 
     <title>Operius</title>
 
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
             background: #000;
             color: white;
             margin: 0;
             padding: 0;
             border: 0;
             overflow: hidden;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
         }
 
         canvas {
             image-rendering: optimizeSpeed;
             -webkit-interpolation-mode: nearest-neighbor;
             -ms-touch-action: none;
+            touch-action: none;
             margin: 0;
             padding: 0;
             border: 0;
@@ -68,22 +76,84 @@
             height: 100%;
         }
 
-        /* ESC button */
-        #escapeButton {
-            display: block !important;
+        /* TOUCHSCREEN CONTROLS */
+
+        #touchControls {
             position: fixed;
-            top: 15px;
-            right: 15px;
+            inset: 0;
             z-index: 2147483647;
-            padding: 12px 20px;
-            background: rgba(20, 20, 20, 0.9);
+            pointer-events: none;
+            touch-action: none;
+            font-family: Arial, sans-serif;
+        }
+
+        #touchControls button {
+            position: absolute;
+            pointer-events: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+            background: rgba(10, 10, 10, 0.85);
             color: white;
-            border: 2px solid white;
-            border-radius: 10px;
-            font-size: 16px;
+            border: 2px solid #ff3030;
+            border-radius: 16px;
             font-weight: bold;
             cursor: pointer;
-            touch-action: manipulation;
+        }
+
+        #touchControls button:active {
+            background: rgba(255, 30, 30, 0.65);
+            transform: scale(0.95);
+        }
+
+        #touchLeft,
+        #touchRight {
+            bottom: 25px;
+            width: 75px;
+            height: 75px;
+            font-size: 28px;
+        }
+
+        #touchLeft {
+            left: 20px;
+        }
+
+        #touchRight {
+            left: 105px;
+        }
+
+        #touchSpace {
+            right: 20px;
+            bottom: 25px;
+            width: 100px;
+            height: 75px;
+            font-size: 16px;
+        }
+
+        #touchBack {
+            top: 15px;
+            right: 15px;
+            width: 75px;
+            height: 48px;
+            font-size: 14px;
+        }
+
+        #touchPause {
+            top: 15px;
+            left: 15px;
+            width: 85px;
+            height: 48px;
+            font-size: 14px;
+        }
+
+        @media (orientation: landscape) {
+            #touchLeft,
+            #touchRight,
+            #touchSpace {
+                bottom: 15px;
+            }
         }
     </style>
 </head>
@@ -97,49 +167,173 @@
         </canvas>
     </div>
 
-    <button id="escapeButton" type="button">ESC</button>
+    <!-- TOUCHSCREEN BUTTONS -->
+
+    <div id="touchControls">
+
+        <button id="touchLeft" type="button">◀</button>
+
+        <button id="touchRight" type="button">▶</button>
+
+        <button id="touchSpace" type="button">SELECT</button>
+
+        <button id="touchBack" type="button">BACK</button>
+
+        <button id="touchPause" type="button">PAUSE</button>
+
+    </div>
 
     <script>
-        function pressEscape() {
-            const targets = [
-                document.getElementById("canvas"),
-                document,
-                window
-            ];
+    (() => {
 
-            const options = {
+        const controls = {
+            touchLeft: {
+                key: "ArrowLeft",
+                code: "ArrowLeft",
+                keyCode: 37
+            },
+
+            touchRight: {
+                key: "ArrowRight",
+                code: "ArrowRight",
+                keyCode: 39
+            },
+
+            touchSpace: {
+                key: " ",
+                code: "Space",
+                keyCode: 32
+            },
+
+            touchBack: {
                 key: "Escape",
                 code: "Escape",
-                keyCode: 27,
-                which: 27,
+                keyCode: 27
+            },
+
+            touchPause: {
+                key: "Enter",
+                code: "Enter",
+                keyCode: 13
+            }
+        };
+
+        const active = new Map();
+
+        function sendKey(id, type) {
+
+            const data = controls[id];
+
+            if (!data) return;
+
+            const options = {
+                key: data.key,
+                code: data.code,
+                keyCode: data.keyCode,
+                which: data.keyCode,
                 bubbles: true,
                 cancelable: true
             };
 
-            targets.forEach(target => {
-                target.dispatchEvent(new KeyboardEvent("keydown", options));
-                target.dispatchEvent(new KeyboardEvent("keyup", options));
-            });
+            document.dispatchEvent(
+                new KeyboardEvent(type, options)
+            );
+
+            window.dispatchEvent(
+                new KeyboardEvent(type, options)
+            );
+
+            const canvas = document.getElementById("canvas");
+
+            if (canvas) {
+                canvas.dispatchEvent(
+                    new KeyboardEvent(type, options)
+                );
+            }
         }
 
-        // ESC button click/tap
-        document.getElementById("escapeButton").addEventListener("click", function(event) {
-            event.stopPropagation();
-            pressEscape();
+        function release(id) {
+
+            if (!active.has(id)) return;
+
+            sendKey(id, "keyup");
+
+            active.delete(id);
+        }
+
+        Object.keys(controls).forEach(id => {
+
+            const button = document.getElementById(id);
+
+            if (!button) return;
+
+            button.addEventListener("pointerdown", event => {
+
+                event.preventDefault();
+
+                if (!active.has(id)) {
+
+                    active.set(id, event.pointerId);
+
+                    sendKey(id, "keydown");
+                }
+
+                button.setPointerCapture(event.pointerId);
+
+            });
+
+            button.addEventListener("pointerup", event => {
+
+                event.preventDefault();
+
+                release(id);
+
+            });
+
+            button.addEventListener("pointercancel", () => {
+
+                release(id);
+
+            });
+
+            button.addEventListener("lostpointercapture", () => {
+
+                release(id);
+
+            });
+
+            button.addEventListener("contextmenu", event => {
+                event.preventDefault();
+            });
+
         });
 
-        // Press C to trigger Escape
-        document.addEventListener("keydown", function(event) {
-            if (event.key.toLowerCase() === "c" && !event.repeat) {
-                event.preventDefault();
-                pressEscape();
-            }
+        window.addEventListener("blur", () => {
+
+            [...active.keys()].forEach(release);
+
         });
+
+        document.addEventListener("visibilitychange", () => {
+
+            if (document.hidden) {
+                [...active.keys()].forEach(release);
+            }
+
+        });
+
+    })();
     </script>
 
-    <!-- Run the game code -->
-    <script type="text/javascript" src="html5game/OperiusFixed.js?EVSZB=828593907"></script>
-    <script>window.onload = GameMaker_Init;</script>
+    <!-- ORIGINAL GAME CODE -->
+
+    <script type="text/javascript"
+        src="html5game/OperiusFixed.js?EVSZB=828593907">
+    </script>
+
+    <script>
+        window.onload = GameMaker_Init;
+    </script>
 
 </body>
 </html>
